@@ -1,119 +1,87 @@
 import streamlit as st
 import random
-import requests
 import time
 
-# --- ページ設定 ---
-st.set_page_config(page_title="ストループ課題（研究用）", layout="centered")
+# --- 色と言葉の設定 ---
+colors = ["赤", "青", "緑", "黄"]
+color_codes = {"赤": "red", "青": "blue", "緑": "green", "黄": "yellow"}
 
-# --- 定数設定 ---
-COLORS = ["赤", "青", "緑", "黄"]
-COLOR_MAP = {"赤": "red", "青": "blue", "緑": "green", "黄": "gold"}
+st.set_page_config(page_title="ストループ課題", layout="centered")
 
-FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdF_9dHEMEPIYEWloJs0Reo9emmZq0rrjFB3oIKExmbJE7ORQ/formResponse"
-ENTRIES = {
-    "name": "entry.19896881",
-    "temp": "entry.665886500",
-    "correct": "entry.142247126",
-    "total": "entry.2032695773",
-    "accuracy": "entry.566413443"
-}
-
-# --- セッション状態初期化 ---
+# --- セッション変数初期化 ---
 if "phase" not in st.session_state:
-    st.session_state.phase = "input"  # input → practice → main → end
+    st.session_state.phase = "practice"  # practice → main → end
     st.session_state.correct = 0
     st.session_state.total = 0
-    st.session_state.time_start = None
-    st.session_state.practice_start = None
-    st.session_state.username = ""
-    st.session_state.temp = ""
+    st.session_state.start_time = None
+    st.session_state.mode = None
 
-# --- フェーズ① 名前・気温入力 ---
-if st.session_state.phase == "input":
-    st.title("ストループ課題（研究用）")
+# --- 練習フェーズ ---
+if st.session_state.phase == "practice":
+    st.markdown("<h2 style='text-align:center;'>ストループ課題 練習</h2>", unsafe_allow_html=True)
+    countdown = st.empty()
 
-    st.session_state.username = st.text_input("名前を入力してください")
-    st.session_state.temp = st.text_input("気温（℃）を入力してください")
+    for i in range(30, 0, -1):
+        countdown.markdown(f"<h4 style='text-align:center;'>練習中… 残り {i} 秒</h4>", unsafe_allow_html=True)
+        time.sleep(1)
+    # 練習終了後に本番へ
+    st.session_state.phase = "main"
+    st.session_state.start_time = time.time()
+    st.experimental_rerun()
 
-    if st.button("練習を開始"):
-        if st.session_state.username and st.session_state.temp:
-            st.session_state.phase = "practice"
-            st.session_state.practice_start = time.time()
-            st.rerun()
-        else:
-            st.warning("名前と気温を入力してください。")
-
-# --- フェーズ② 練習（30秒） ---
-elif st.session_state.phase == "practice":
-    elapsed = time.time() - st.session_state.practice_start
-    remaining = 30 - int(elapsed)
-    if remaining <= 0:
-        st.session_state.phase = "message"
-        st.rerun()
-
-    st.header(f"練習残り時間: {remaining}秒")
-
-    text = random.choice(COLORS)
-    color = random.choice(COLORS)
-    st.markdown(f"<h1 style='color:{COLOR_MAP[color]};font-size:60px;'>{text}</h1>", unsafe_allow_html=True)
-
-    cols = st.columns(4)
-    for c, name in zip(cols, COLORS):
-        if c.button(name):
-            st.rerun()
-
-# --- フェーズ③ 練習終了メッセージ ---
-elif st.session_state.phase == "message":
-    st.header("✅ 練習が終わりました")
-    st.write("ルールが理解できたら「本番を開始」ボタンを押してください。")
-    if st.button("本番を開始"):
-        st.session_state.phase = "main"
-        st.session_state.time_start = time.time()
-        st.session_state.correct = 0
-        st.session_state.total = 0
-        st.rerun()
-
-# --- フェーズ④ 本番（10分） ---
+# --- 本番フェーズ ---
 elif st.session_state.phase == "main":
-    elapsed = time.time() - st.session_state.time_start
-    remaining = 600 - int(elapsed)
+    duration = 600  # 10分（600秒）
+    elapsed = time.time() - st.session_state.start_time
+    remaining = int(duration - elapsed)
+
     if remaining <= 0:
         st.session_state.phase = "end"
-        st.rerun()
+        st.experimental_rerun()
+    else:
+        st.markdown("<h2 style='text-align:center;'>本番</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align:center;'>残り時間: {remaining} 秒</p>", unsafe_allow_html=True)
 
-    st.header(f"残り時間: {remaining//60}:{remaining%60:02d}")
+        # 出題：色と文字をランダムに選択
+        text = random.choice(colors)
+        ink = random.choice(colors)
 
-    # 問題生成
-    text = random.choice(COLORS)
-    color = random.choice(COLORS)
-    st.markdown(f"<h1 style='color:{COLOR_MAP[color]};font-size:60px;'>{text}</h1>", unsafe_allow_html=True)
+        # どちらを答えるか（50%ずつ）
+        st.session_state.mode = random.choice(["color", "word"])
+        correct_answer = ink if st.session_state.mode == "color" else text
 
-    cols = st.columns(4)
-    for c, name in zip(cols, COLORS):
-        if c.button(name):
-            st.session_state.total += 1
-            if name == color:
-                st.session_state.correct += 1
-            else:
-                st.warning("❌ 不正解！もう一度！")
-            st.rerun()
+        # 問題を中央に大きく表示
+        st.markdown(
+            f"""
+            <div style='text-align:center; font-size:70px; font-weight:bold; color:{color_codes[ink]};'>
+            {text}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-# --- フェーズ⑤ 終了画面 ---
+        if st.session_state.mode == "color":
+            st.markdown("<h4 style='text-align:center;'>🖌 インクの色を選んでください</h4>", unsafe_allow_html=True)
+        else:
+            st.markdown("<h4 style='text-align:center;'>🔤 文字の意味を選んでください</h4>", unsafe_allow_html=True)
+
+        # ボタン（2列）
+        cols = st.columns(2)
+        for i, c in enumerate(colors):
+            if cols[i % 2].button(c, use_container_width=True):
+                st.session_state.total += 1
+                if c == correct_answer:
+                    st.session_state.correct += 1
+                st.experimental_rerun()
+
+        st.markdown(f"<p style='text-align:center;'>正答数: {st.session_state.correct} / {st.session_state.total}</p>", unsafe_allow_html=True)
+
+# --- 終了フェーズ ---
 elif st.session_state.phase == "end":
-    accuracy = (st.session_state.correct / st.session_state.total * 100) if st.session_state.total > 0 else 0
-    st.header("🎉 お疲れさまでした！")
-    st.write(f"正答数: {st.session_state.correct} / 問題数: {st.session_state.total}")
-    st.write(f"正答率: {accuracy:.1f}%")
-
-    data = {
-        ENTRIES["name"]: st.session_state.username,
-        ENTRIES["temp"]: st.session_state.temp,
-        ENTRIES["correct"]: st.session_state.correct,
-        ENTRIES["total"]: st.session_state.total,
-        ENTRIES["accuracy"]: f"{accuracy:.1f}"
-    }
-    requests.post(FORM_URL, data=data)
-
-    st.success("結果が自動送信されました ✅")
-    st.write("この画面を閉じて終了です。")
+    accuracy = round(st.session_state.correct / st.session_state.total * 100, 1) if st.session_state.total > 0 else 0
+    st.markdown("<h2 style='text-align:center;'>実験終了！</h2>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='text-align:center;'>正答数：{st.session_state.correct} / {st.session_state.total}<br>正答率：{accuracy}%</p>",
+        unsafe_allow_html=True
+    )
+    st.balloons()
